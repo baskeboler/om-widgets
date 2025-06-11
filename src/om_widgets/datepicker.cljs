@@ -9,6 +9,15 @@
 ;; TODO translate
 (defonce days-short ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"])
 
+(defn weekday-labels
+  "Returns the short labels for the days of the week.
+  If week-starts-on-sunday? is true, the week starts on Sunday,
+  otherwise it starts on Monday."
+  [week-starts-on-sunday?]
+  (if week-starts-on-sunday?
+    (concat ["Su"] (butlast days-short))
+    days-short))
+
 (defn- build-previous-month-days [date]
   (let [current-month (time/date-time (time/year date) (time/month date))
         weekday-current-month (time/day-of-week current-month)
@@ -55,7 +64,8 @@
     [...]
   [{:day 1 :month 3 :year 2014 :belongs-to-month :next}] ]
   "
-  [date]
+  [date & {:keys [week-starts-on-sunday?]
+           :or {week-starts-on-sunday? false}}]
   (let [previous-days (build-previous-month-days date)
         currrent-days (build-current-month-days date)
         next-days (build-next-month-days date)
@@ -167,13 +177,15 @@
     om/IDisplayName
     (display-name [_] "DatepickerWeeks")
     om/IRenderState
-    (render-state [this {:keys [date path onChange] :as state}]
+    (render-state [this {:keys [date path onChange week-starts-on-sunday?]
+                         :or {week-starts-on-sunday? false}
+                         :as state}]
       (apply dom/tbody nil
              (map (fn [week]
                     (apply dom/tr nil
                            (map (fn [d]
                                   (om/build day-component app {:state {:day d :path path :date date :onChange onChange}})) week)))
-                  (build-weeks date))))))
+                  (build-weeks date :week-starts-on-sunday? false))))))
 
 (defn- year-component [app owner]
   (reify
@@ -202,7 +214,10 @@
     om/IDisplayName
     (display-name [_] "DatepickerBody")
     om/IRenderState
-    (render-state [this {:keys [path date onChange] :as state}]
+    (render-state [this {:keys [path date onChange
+                                week-starts-on-sunday?]
+                         :or {week-starts-on-sunday? false}
+                         :as state}]
       (dom/div #js {:className "datepicker datepicker-days" :style #js {:display "block"}}
                (dom/table #js {:className "table-condensed"}
                           (dom/thead nil
@@ -223,7 +238,7 @@
                                                           :onClick (fn [e]
                                                                      (om/set-state! owner :date (time/plus date (time/months 1))))} ">"))
                                      (apply dom/tr nil
-                                            (om/build-all day-header days-short)))
+                                            (om/build-all day-header (weekday-labels week-starts-on-sunday?))))
 
                           ;; datepicker body
                           (om/build weeks-component app {:state {:path path :date date :onChange onChange}}))))))
@@ -239,11 +254,14 @@
 
   note: we assume today date if the cursor does not have a date
   "
-  [app path {:keys [id hidden onChange] :or {hidden true}}]
+  [app path {:keys [id hidden onChange week-starts-on-sunday?] 
+             :or {hidden true 
+                  week-starts-on-sunday? false}}]
   (om/build body-component app {:state {:id id
                                         :hidden hidden
                                         :date (if (instance? js/Date (utils/om-get app [path]))
                                                 (time/date-time (utils/om-get app [path]))
                                                 (time/now))
                                         :path path
-                                        :onChange onChange}}))
+                                        :onChange onChange
+                                        :week-starts-on-sunday? week-starts-on-sunday?}}))
