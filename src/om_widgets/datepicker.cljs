@@ -29,10 +29,13 @@
                                 (- last-day (dec weekday-current-month))
                                 (inc (- last-day (dec weekday-current-month))))
         days-to-fill          (range lower-bound (inc last-day))]
-    (mapv (fn [d] {:day              d
-                   :month            (- 1 (time/month date))
-                   :year             (time/year date)
-                   :belongs-to-month :previous}) days-to-fill)))
+    (if (= 7 (count days-to-fill))
+      nil
+      
+      (mapv (fn [d] {:day              d
+                     :month            (- 1 (time/month date))
+                     :year             (time/year date)
+                     :belongs-to-month :previous}) days-to-fill))))
 
 (defn- build-current-month-days [date]
   (let [last-day (time/number-of-days-in-the-month date)]
@@ -43,16 +46,24 @@
              :belongs-to-month :current})
           (range 1 (inc last-day)))))
 
-(defn- build-next-month-days [date]
+(defn- build-next-month-days
+  [date & {:keys [week-starts-on-sunday?]
+           :or {week-starts-on-sunday? false}}]
   (let [current-month (time/date-time (time/year date) (time/month date))
         last-day-number (time/number-of-days-in-the-month current-month)
         last-day (time/date-time (time/year current-month) (time/month current-month) last-day-number)
         weekday-last-day (time/day-of-week last-day)
-        days-to-fill (range 1 (inc (- 14 weekday-last-day)))]
-    (mapv (fn [d] {:day d
-                   :month (+ 1 (time/month date))
-                   :year (time/year date)
-                   :belongs-to-month :next}) days-to-fill)))
+        days-to-fill (range 1 
+                            (if week-starts-on-sunday?
+                              (- 14 weekday-last-day)
+                              (inc (- 14 weekday-last-day))))]
+    (->> days-to-fill
+         (mapv (fn [d] {:day d
+                        :month (+ 1 (time/month date))
+                        :year (time/year date)
+                        :belongs-to-month :next}))
+         (take (mod (count days-to-fill) 7))
+         (into []))))
 
 (defn- build-weeks
   "We build a 7x6 matrix representing the 7 days in a week and
@@ -72,7 +83,7 @@
            :or {week-starts-on-sunday? false}}]
   (let [previous-days (build-previous-month-days date :week-starts-on-sunday? week-starts-on-sunday?)
         currrent-days (build-current-month-days date)
-        next-days (build-next-month-days date)
+        next-days (build-next-month-days date :week-starts-on-sunday? week-starts-on-sunday?)
         days (into [] (concat previous-days currrent-days next-days))]
     (take 6 (mapv vec (partition 7 days)))))
 
@@ -148,8 +159,7 @@
                               (time/days (time/day-of-week date)))]
     (map #(time/plus start-day
                      (time/days %))
-        ;;  (range 1 8)
-         (range 8))))
+         (range 1 8))))
 
 (defn current-week
   "Returns a list of days for the current week"
