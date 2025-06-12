@@ -7,7 +7,7 @@
             [cljs-time.coerce :as timec]))
 
 ;; TODO translate
-(defonce days-short ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"])
+(defonce days-short ["Mo" "Tu" "We" "Th" "Fr" "Sa" "Su"])
 
 (defn weekday-labels
   "Returns the short labels for the days of the week.
@@ -18,15 +18,20 @@
     (concat ["Su"] (butlast days-short))
     days-short))
 
-(defn- build-previous-month-days [date]
-  (let [current-month (time/date-time (time/year date) (time/month date))
+(defn- build-previous-month-days
+  [date & {:keys [week-starts-on-sunday?]
+           :or   {week-starts-on-sunday? false}}]
+  (let [current-month         (time/date-time (time/year date) (time/month date))
         weekday-current-month (time/day-of-week current-month)
-        previous-month (time/minus current-month (time/months 1))
-        last-day (time/number-of-days-in-the-month previous-month)
-        days-to-fill (range (inc (- last-day (dec weekday-current-month))) (inc last-day))]
-    (mapv (fn [d] {:day d
-                   :month (- 1 (time/month date))
-                   :year (time/year date)
+        previous-month        (time/minus current-month (time/months 1))
+        last-day              (time/number-of-days-in-the-month previous-month)
+        lower-bound           (if week-starts-on-sunday?
+                                (- last-day (dec weekday-current-month))
+                                (inc (- last-day (dec weekday-current-month))))
+        days-to-fill          (range lower-bound (inc last-day))]
+    (mapv (fn [d] {:day              d
+                   :month            (- 1 (time/month date))
+                   :year             (time/year date)
                    :belongs-to-month :previous}) days-to-fill)))
 
 (defn- build-current-month-days [date]
@@ -43,7 +48,6 @@
         last-day-number (time/number-of-days-in-the-month current-month)
         last-day (time/date-time (time/year current-month) (time/month current-month) last-day-number)
         weekday-last-day (time/day-of-week last-day)
-        weekday-current-month (time/day-of-week current-month)
         days-to-fill (range 1 (inc (- 14 weekday-last-day)))]
     (mapv (fn [d] {:day d
                    :month (+ 1 (time/month date))
@@ -66,7 +70,7 @@
   "
   [date & {:keys [week-starts-on-sunday?]
            :or {week-starts-on-sunday? false}}]
-  (let [previous-days (build-previous-month-days date)
+  (let [previous-days (build-previous-month-days date :week-starts-on-sunday? week-starts-on-sunday?)
         currrent-days (build-current-month-days date)
         next-days (build-next-month-days date)
         days (into [] (concat previous-days currrent-days next-days))]
@@ -76,8 +80,9 @@
   (om/component
    (dom/th #js {:className "dow"} day)))
 
-(defmulti get-date-from-selected-day (fn [previous-date selected-day]
-                                       (:belongs-to-month selected-day)))
+(defmulti get-date-from-selected-day
+  (fn [previous-date selected-day]
+    (:belongs-to-month selected-day)))
 
 (defmethod get-date-from-selected-day :current [previous-date selected-day]
   (timec/to-date (time/date-time (time/year previous-date)
@@ -143,7 +148,8 @@
                               (time/days (time/day-of-week date)))]
     (map #(time/plus start-day
                      (time/days %))
-         (range 1 8))))
+        ;;  (range 1 8)
+         (range 8))))
 
 (defn current-week
   "Returns a list of days for the current week"
@@ -185,7 +191,7 @@
                     (apply dom/tr nil
                            (map (fn [d]
                                   (om/build day-component app {:state {:day d :path path :date date :onChange onChange}})) week)))
-                  (build-weeks date :week-starts-on-sunday? false))))))
+                  (build-weeks date :week-starts-on-sunday? week-starts-on-sunday?))))))
 
 (defn- year-component [app owner]
   (reify
@@ -241,7 +247,7 @@
                                             (om/build-all day-header (weekday-labels week-starts-on-sunday?))))
 
                           ;; datepicker body
-                          (om/build weeks-component app {:state {:path path :date date :onChange onChange}}))))))
+                          (om/build weeks-component app {:state state}))))))
 
 (defn datepicker
   "Datepicker public API
