@@ -26,6 +26,10 @@ jobs:
         chmod +x lein
         sudo mv lein /usr/local/bin/
         export PATH=$PATH:/usr/local/bin/
+    - name: Install PhantomJS
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y phantomjs
     - name: Install dependencies
       run: lein deps
     - name: Run tests
